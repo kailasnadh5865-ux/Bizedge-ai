@@ -35,37 +35,6 @@ app.get("/availability", async (req, res) => {
     }
 });
 
-// 2️⃣ Book a meeting
-app.post("/book", async (req, res) => {
-    try {
-        const { name, email, start_time } = req.body;
-
-        const response = await axios.post(
-            "https://api.calendly.com/scheduled_events",
-            {
-                event_type: EVENT_TYPE_URI,
-                start_time: start_time,
-                invitees: [
-                    {
-                        email: email,
-                        name: name
-                    }
-                ]
-            },
-            {
-                headers: {
-                    Authorization: `Bearer ${CALENDLY_TOKEN}`,
-                    "Content-Type": "application/json",
-                },
-            }
-        );
-
-        res.json(response.data);
-    } catch (error) {
-        console.log(error.response?.data || error.message);
-        res.status(500).json(error.response?.data || error.message);
-    }
-});
 
 // Root Status Route for Render Health Check
 app.get("/", (req, res) => {
