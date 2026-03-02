@@ -6,6 +6,11 @@ const path = require("path");
 const app = express();
 app.use(express.json());
 
+// simple health check for Render
+app.get("/", (req, res) => {
+  res.send("Server is running ✅");
+});
+
 // Serve static files from the root directory
 app.use(express.static(path.join(__dirname, '/')));
 
@@ -35,6 +40,42 @@ app.get("/availability", async (req, res) => {
     }
 });
 
+// 2️⃣ Book a meeting with Retell
+app.post("/retell-book", async (req, res) => {
+  try {
+    const { name, email, requested_time } = req.body;
+
+    console.log("Retell request:", req.body);
+
+    // Call Calendly scheduling_links API
+    const response = await axios.post(
+      "https://api.calendly.com/scheduling_links",
+      {
+        max_event_count: 1,
+        owner: EVENT_TYPE_URI,
+        owner_type: "EventType"
+      },
+      {
+        headers: {
+          Authorization: `Bearer ${process.env.CALENDLY_TOKEN}`,
+          "Content-Type": "application/json"
+        }
+      }
+    );
+
+    res.json({
+      success: true,
+      booking_link: response.data.resource.booking_url
+    });
+
+  } catch (error) {
+    console.error(error.response?.data || error.message);
+    res.status(500).json({
+      success: false,
+      error: error.response?.data || error.message
+    });
+  }
+});
 
 // Root Status Route for Render Health Check
 app.get("/", (req, res) => {
