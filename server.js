@@ -11,6 +11,11 @@ app.get("/", (req, res) => {
   res.send("Server is running ✅");
 });
 
+// ✅ Retell route (temporary response)
+app.post("/retell-book", async (req, res) => {
+  res.json({ success: true });
+});
+
 // Serve static files from the root directory
 app.use(express.static(path.join(__dirname, '/')));
 
@@ -40,47 +45,10 @@ app.get("/availability", async (req, res) => {
     }
 });
 
-// 2️⃣ Book a meeting with Retell
-app.post("/retell-book", async (req, res) => {
-  try {
-    const { name, email, requested_time } = req.body;
+// 2️⃣ Book a meeting with Retell (temporary simplified handler)
+// original implementation removed for testing
 
-    console.log("Retell request:", req.body);
 
-    // Call Calendly scheduling_links API
-    const response = await axios.post(
-      "https://api.calendly.com/scheduling_links",
-      {
-        max_event_count: 1,
-        owner: EVENT_TYPE_URI,
-        owner_type: "EventType"
-      },
-      {
-        headers: {
-          Authorization: `Bearer ${process.env.CALENDLY_TOKEN}`,
-          "Content-Type": "application/json"
-        }
-      }
-    );
-
-    res.json({
-      success: true,
-      booking_link: response.data.resource.booking_url
-    });
-
-  } catch (error) {
-    console.error(error.response?.data || error.message);
-    res.status(500).json({
-      success: false,
-      error: error.response?.data || error.message
-    });
-  }
-});
-
-// Root Status Route for Render Health Check
-app.get("/", (req, res) => {
-    res.send("Bizedge AI backend is running 🚀");
-});
 
 // Serving the main HTML file (moved to /ui)
 app.get("/ui", (req, res) => {
