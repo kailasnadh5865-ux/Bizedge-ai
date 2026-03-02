@@ -10,7 +10,7 @@ app.use(express.json());
 app.use(express.static(path.join(__dirname, '/')));
 
 const CALENDLY_TOKEN = process.env.CALENDLY_TOKEN;
-const EVENT_TYPE_URI = "https://api.calendly.com/event_types/1db3b8e8-b27e-4868-bb68-e6a5eb5f0267";
+const EVENT_TYPE_URI = "uri":"https://api.calendly.com/users/52d0cf0d-7460-4c8f-9721-d64f2ed6961b";
 
 // 1️⃣ Get available time slots
 app.get("/availability", async (req, res) => {
