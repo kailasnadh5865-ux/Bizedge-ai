@@ -44,11 +44,13 @@ app.post("/book", async (req, res) => {
             "https://api.calendly.com/scheduled_events",
             {
                 event_type: EVENT_TYPE_URI,
-                start_time,
-                invitee: {
-                    name,
-                    email,
-                },
+                start_time: start_time,
+                invitees: [
+                    {
+                        email: email,
+                        name: name
+                    }
+                ]
             },
             {
                 headers: {
@@ -60,12 +62,18 @@ app.post("/book", async (req, res) => {
 
         res.json(response.data);
     } catch (error) {
-        res.status(500).json((error.response && error.response.data) || error.message);
+        console.log(error.response?.data || error.message);
+        res.status(500).json(error.response?.data || error.message);
     }
 });
 
-// Serving the main HTML file
+// Root Status Route for Render Health Check
 app.get("/", (req, res) => {
+    res.send("Bizedge AI backend is running 🚀");
+});
+
+// Serving the main HTML file (moved to /ui)
+app.get("/ui", (req, res) => {
     res.sendFile(path.join(__dirname, 'index.html'));
 });
 
