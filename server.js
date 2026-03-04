@@ -9,7 +9,7 @@ app.use(express.static(path.join(__dirname, '/')));
 
 // simple health check for Render
 app.get("/", (req, res) => {
-  res.sendFile(path.join(__dirname, "index.html"));
+  res.sendFile(path.join(__dirname, "public", "index.html"));
 });
 
 // ✅ Retell route (temporary response)
@@ -131,7 +131,7 @@ app.post("/book-slot", async (req, res) => {
 
 // Serving the main HTML file (moved to /ui)
 app.get("/ui", (req, res) => {
-    res.sendFile(path.join(__dirname, 'index.html'));
+    res.sendFile(path.join(__dirname, "public", "index.html"));
 });
 
 const PORT = process.env.PORT || 3000;
