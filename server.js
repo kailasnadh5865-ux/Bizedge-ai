@@ -1,14 +1,15 @@
 require("dotenv").config();
 const express = require("express");
-const axios = require("axios");
 const path = require("path");
+const axios = require("axios");
 
 const app = express();
 app.use(express.json());
+app.use(express.static(path.join(__dirname, '/')));
 
 // simple health check for Render
 app.get("/", (req, res) => {
-  res.send("Server is running ✅");
+  res.sendFile(path.join(__dirname, "index.html"));
 });
 
 // ✅ Retell route (temporary response)
@@ -16,33 +17,40 @@ app.post("/retell-book", async (req, res) => {
   res.json({ success: true });
 });
 
-// Serve static files from the root directory
-app.use(express.static(path.join(__dirname, '/')));
+// Serve static files from the root directory (now enabled earlier)
 
 const CALENDLY_TOKEN = process.env.CALENDLY_TOKEN;
 const EVENT_TYPE_URI ="https://api.calendly.com/event_types/1db3b8e8-b27e-4868-bb68-e6a5eb5f0267"
 
 // 1️⃣ Get available time slots
 app.get("/availability", async (req, res) => {
-    try {
-        const response = await axios.get(
-            "https://api.calendly.com/event_type_available_times",
-            {
-                headers: {
-                    Authorization: `Bearer ${CALENDLY_TOKEN}`,
-                },
-                params: {
-                    event_type: EVENT_TYPE_URI,
-                    start_time: "2026-03-01T00:00:00Z",
-                    end_time: "2026-03-07T23:59:59Z",
-                },
-            }
-        );
+  try {
+    // 15 minutes in the future (guaranteed safe)
+    const start = new Date(Date.now() + 15 * 60 * 1000);
+    const end = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
 
-        res.json(response.data);
-    } catch (error) {
-        res.status(500).json((error.response && error.response.data) || error.message);
-    }
+    console.log("START:", start.toISOString());
+    console.log("END:", end.toISOString());
+
+    const response = await axios.get(
+      "https://api.calendly.com/event_type_available_times",
+      {
+        headers: {
+          Authorization: `Bearer ${process.env.CALENDLY_TOKEN}`,
+        },
+        params: {
+          event_type: process.env.CALENDLY_EVENT_TYPE_URI,
+          start_time: start.toISOString(),
+          end_time: end.toISOString(),
+        },
+      }
+    );
+
+    res.json(response.data);
+  } catch (error) {
+    console.error(error.response?.data || error.message);
+    res.status(500).json(error.response?.data || error.message);
+  }
 });
 
 // ✅ New availability check route
@@ -50,49 +58,37 @@ app.post("/check-availability", async (req, res) => {
   try {
     const { start_time } = req.body;
 
+    if (!start_time) {
+      return res.status(400).json({ error: "start_time is required" });
+    }
+
+    // Create a 30-minute window around requested time
+    const start = new Date(start_time);
+    const end = new Date(start.getTime() + 30 * 60 * 1000);
+
     const response = await axios.get(
       "https://api.calendly.com/event_type_available_times",
       {
+        headers: {
+          Authorization: `Bearer ${process.env.CALENDLY_TOKEN}`,
+        },
         params: {
           event_type: process.env.CALENDLY_EVENT_TYPE_URI,
-          start_time: start_time,
-          end_time: start_time
+          start_time: start.toISOString(),
+          end_time: end.toISOString(),
         },
-        headers: {
-          Authorization: `Bearer ${process.env.CALENDLY_API_KEY}`
-        }
       }
     );
 
-    if (response.data.collection.length > 0) {
-      return res.json({
-        available: true
-      });
-    }
+    const availableSlots = response.data.collection;
 
-    // If not available, get next 3 slots
-    const fallback = await axios.get(
-      "https://api.calendly.com/event_type_available_times",
-      {
-        params: {
-          event_type: process.env.CALENDLY_EVENT_TYPE_URI,
-          start_time: new Date().toISOString(),
-          end_time: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString()
-        },
-        headers: {
-          Authorization: `Bearer ${process.env.CALENDLY_API_KEY}`
-        }
-      }
+    const requestedTime = new Date(start_time).getTime();
+
+    const isAvailable = availableSlots.some(
+      (slot) => new Date(slot.start_time).getTime() === requestedTime
     );
 
-    const nextSlots = fallback.data.collection
-      .slice(0, 3)
-      .map(slot => slot.start_time);
-
-    res.json({
-      available: false,
-      suggestions: nextSlots
-    });
+    res.json({ available: isAvailable });
 
   } catch (error) {
     console.error(error.response?.data || error.message);

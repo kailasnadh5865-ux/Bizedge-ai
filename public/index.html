@@ -1,4 +1,44 @@
-<!DOCTYPE html>
+Replace your entire /check-availability route with this:
+
+app.post("/check-availability", async (req, res) => {
+  try {
+    const { start_time } = req.body;
+
+    if (!start_time) {
+      return res.status(400).json({ error: "start_time is required" });
+    }
+
+    // Create a 30-minute window around requested time
+    const start = new Date(start_time);
+    const end = new Date(start.getTime() + 30 * 60 * 1000);
+
+    const response = await axios.get(
+      "https://api.calendly.com/event_type_available_times",
+      {
+        headers: {
+          Authorization: `Bearer ${process.env.CALENDLY_TOKEN}`,
+        },
+        params: {
+          event_type: process.env.CALENDLY_EVENT_TYPE_URI,
+          start_time: start.toISOString(),
+          end_time: end.toISOString(),
+        },
+      }
+    );
+
+    const availableSlots = response.data.collection;
+
+    const isAvailable = availableSlots.some(
+      (slot) => slot.start_time === start.toISOString()
+    );
+
+    res.json({ available: isAvailable });
+
+  } catch (error) {
+    console.error(error.response?.data || error.message);
+    res.status(500).json({ error: "Availability check failed" });
+  }
+});<!DOCTYPE html>
 <html lang="en">
 
 <head>
