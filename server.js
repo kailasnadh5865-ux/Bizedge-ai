@@ -45,6 +45,89 @@ app.get("/availability", async (req, res) => {
     }
 });
 
+// ✅ New availability check route
+app.post("/check-availability", async (req, res) => {
+  try {
+    const { start_time } = req.body;
+
+    const response = await axios.get(
+      "https://api.calendly.com/event_type_available_times",
+      {
+        params: {
+          event_type: process.env.CALENDLY_EVENT_TYPE_URI,
+          start_time: start_time,
+          end_time: start_time
+        },
+        headers: {
+          Authorization: `Bearer ${process.env.CALENDLY_API_KEY}`
+        }
+      }
+    );
+
+    if (response.data.collection.length > 0) {
+      return res.json({
+        available: true
+      });
+    }
+
+    // If not available, get next 3 slots
+    const fallback = await axios.get(
+      "https://api.calendly.com/event_type_available_times",
+      {
+        params: {
+          event_type: process.env.CALENDLY_EVENT_TYPE_URI,
+          start_time: new Date().toISOString(),
+          end_time: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString()
+        },
+        headers: {
+          Authorization: `Bearer ${process.env.CALENDLY_API_KEY}`
+        }
+      }
+    );
+
+    const nextSlots = fallback.data.collection
+      .slice(0, 3)
+      .map(slot => slot.start_time);
+
+    res.json({
+      available: false,
+      suggestions: nextSlots
+    });
+
+  } catch (error) {
+    console.error(error.response?.data || error.message);
+    res.status(500).json({ error: "Availability check failed" });
+  }
+});
+
+// 🚀 Booking route
+app.post("/book-slot", async (req, res) => {
+  try {
+    const { name, email, start_time } = req.body;
+
+    await axios.post(
+      "https://api.calendly.com/scheduled_events",
+      {
+        event_type: process.env.CALENDLY_EVENT_TYPE_URI,
+        start_time: start_time,
+        invitee: { name, email }
+      },
+      {
+        headers: {
+          Authorization: `Bearer ${process.env.CALENDLY_API_KEY}`,
+          "Content-Type": "application/json"
+        }
+      }
+    );
+
+    res.json({ success: true });
+
+  } catch (error) {
+    console.error(error.response?.data || error.message);
+    res.status(500).json({ error: "Booking failed" });
+  }
+});
+
 // 2️⃣ Book a meeting with Retell (temporary simplified handler)
 // original implementation removed for testing
 
