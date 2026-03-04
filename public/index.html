@@ -1,44 +1,4 @@
-Replace your entire /check-availability route with this:
-
-app.post("/check-availability", async (req, res) => {
-  try {
-    const { start_time } = req.body;
-
-    if (!start_time) {
-      return res.status(400).json({ error: "start_time is required" });
-    }
-
-    // Create a 30-minute window around requested time
-    const start = new Date(start_time);
-    const end = new Date(start.getTime() + 30 * 60 * 1000);
-
-    const response = await axios.get(
-      "https://api.calendly.com/event_type_available_times",
-      {
-        headers: {
-          Authorization: `Bearer ${process.env.CALENDLY_TOKEN}`,
-        },
-        params: {
-          event_type: process.env.CALENDLY_EVENT_TYPE_URI,
-          start_time: start.toISOString(),
-          end_time: end.toISOString(),
-        },
-      }
-    );
-
-    const availableSlots = response.data.collection;
-
-    const isAvailable = availableSlots.some(
-      (slot) => slot.start_time === start.toISOString()
-    );
-
-    res.json({ available: isAvailable });
-
-  } catch (error) {
-    console.error(error.response?.data || error.message);
-    res.status(500).json({ error: "Availability check failed" });
-  }
-});<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="en">
 
 <head>
@@ -49,6 +9,8 @@ app.post("/check-availability", async (req, res) => {
         content="Empowering businesses with cutting-edge AI strategy, automation, and development solutions.">
     <link rel="stylesheet" href="style.css">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;800&display=swap" rel="stylesheet">
+    <!-- Retell AI SDK -->
+    <script src="https://cdn.retellai.com/retell-client-js-sdk/index.js"></script>
 </head>
 
 <body>
@@ -103,6 +65,16 @@ app.post("/check-availability", async (req, res) => {
             <div class="contact-container">
                 <h2>Let's Build the Future</h2>
                 <p>Ready to start your AI journey? Contact us today.</p>
+                
+                <!-- Retell AI Agents -->
+                <div class="retell-agents">
+                    <button id="chat-agent-btn" class="btn primary">💬 Chat with AI</button>
+                    <button id="voice-agent-btn" class="btn primary">🎤 Voice Call with AI</button>
+                </div>
+                
+                <!-- Chat Widget Container -->
+                <div id="retell-chat-widget" style="display: none; margin-top: 20px; border: 1px solid #ccc; border-radius: 8px; height: 500px; overflow-y: auto;"></div>
+                
                 <a href="https://calendly.com/thorodinson10001/ai-call-booking">
                   <button class="btn primary">Book AI Call</button>
                 </a>
@@ -121,6 +93,157 @@ app.post("/check-availability", async (req, res) => {
     </footer>
 
     <script>
+      let chatConversationId = null;
+      let voiceCallInProgress = false;
+      
+      const chatAgentBtn = document.getElementById('chat-agent-btn');
+      const voiceAgentBtn = document.getElementById('voice-agent-btn');
+      const chatWidget = document.getElementById('retell-chat-widget');
+      
+      // ✅ Chat Agent Handler
+      chatAgentBtn.addEventListener('click', async () => {
+        try {
+          if (!chatConversationId) {
+            // Initialize conversation
+            const response = await fetch('/retell-chat-init', { method: 'POST' });
+            const data = await response.json();
+            
+            if (!data.success) {
+              alert('❌ Failed to initialize chat agent');
+              return;
+            }
+            
+            chatConversationId = data.conversation_id;
+          }
+          
+          // Toggle widget visibility
+          chatWidget.style.display = chatWidget.style.display === 'none' ? 'block' : 'none';
+          
+          if (chatWidget.style.display === 'block' && chatWidget.innerHTML === '') {
+            // Create chat interface
+            const chatHtml = `
+              <div style="padding: 15px; display: flex; flex-direction: column; height: 100%; background: white;">
+                <div style="margin-bottom: 10px; font-weight: bold;">💬 Chat with Bizedge AI</div>
+                <div id="messages" style="flex: 1; overflow-y: auto; margin-bottom: 15px; border: 1px solid #eee; padding: 10px; border-radius: 4px; background: #f9f9f9;">
+                  <div style="padding: 8px; color: #666; font-size: 14px;">Chat started. Ask me anything about AI, automation, or our services!</div>
+                </div>
+                <div style="display: flex; gap: 8px;">
+                  <input type="text" id="chat-input" placeholder="Type your message..." style="flex: 1; padding: 10px; border: 1px solid #ccc; border-radius: 4px; font-size: 14px;">
+                  <button id="send-chat-btn" style="padding: 10px 16px; background: #0070f3; color: white; border: none; border-radius: 4px; cursor: pointer; font-weight: bold;">Send</button>
+                </div>
+              </div>
+            `;
+            chatWidget.innerHTML = chatHtml;
+            
+            // Attach event listeners
+            document.getElementById('send-chat-btn').addEventListener('click', sendChatMessage);
+            document.getElementById('chat-input').addEventListener('keypress', (e) => {
+              if (e.key === 'Enter') sendChatMessage();
+            });
+          }
+        } catch (err) {
+          console.error('Chat initialization error:', err);
+          alert('❌ Error initializing chat');
+        }
+      });
+      
+      // ✅ Send Chat Message
+      async function sendChatMessage() {
+        const input = document.getElementById('chat-input');
+        const message = input.value.trim();
+        
+        if (!message || !chatConversationId) return;
+        
+        // Display user message
+        const messagesDiv = document.getElementById('messages');
+        const userMsg = document.createElement('div');
+        userMsg.style.cssText = 'margin-bottom: 8px; padding: 8px 10px; background: #0070f3; color: white; border-radius: 4px; max-width: 80%; word-wrap: break-word; margin-left: auto;';
+        userMsg.textContent = message;
+        messagesDiv.appendChild(userMsg);
+        
+        input.value = '';
+        messagesDiv.scrollTop = messagesDiv.scrollHeight;
+        
+        try {
+          const response = await fetch('/retell-chat-message', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              conversation_id: chatConversationId,
+              text: message
+            })
+          });
+          
+          const data = await response.json();
+          
+          if (data.success && data.response) {
+            // Display bot response
+            const botMsg = document.createElement('div');
+            botMsg.style.cssText = 'margin-bottom: 8px; padding: 8px 10px; background: #e4e4e7; color: #333; border-radius: 4px; max-width: 80%; word-wrap: break-word;';
+            botMsg.textContent = data.response.response_text || 'Got your message!';
+            messagesDiv.appendChild(botMsg);
+            messagesDiv.scrollTop = messagesDiv.scrollHeight;
+          }
+        } catch (err) {
+          console.error('Send message error:', err);
+          const errorMsg = document.createElement('div');
+          errorMsg.style.cssText = 'margin-bottom: 8px; padding: 8px 10px; background: #ff6b6b; color: white; border-radius: 4px;';
+          errorMsg.textContent = 'Failed to send message';
+          messagesDiv.appendChild(errorMsg);
+        }
+      }
+      
+      // ✅ Voice Agent Handler
+      voiceAgentBtn.addEventListener('click', async () => {
+        if (voiceCallInProgress) {
+          alert('🎤 A call is already in progress');
+          return;
+        }
+        
+        try {
+          voiceAgentBtn.disabled = true;
+          voiceAgentBtn.textContent = '🎤 Initializing call...';
+          
+          const response = await fetch('/retell-voice-init', { method: 'POST' });
+          const data = await response.json();
+          
+          if (!data.success) {
+            alert('❌ Failed to initialize voice call');
+            voiceAgentBtn.disabled = false;
+            voiceAgentBtn.textContent = '🎤 Voice Call with AI';
+            return;
+          }
+          
+          voiceCallInProgress = true;
+          voiceAgentBtn.textContent = '🎤 Call in progress...';
+          
+          // Use Retell WebCall client to start the voice call
+          if (window.RetellWebCall) {
+            const webCall = new window.RetellWebCall();
+            await webCall.startCall({
+              conversationId: data.conversation_id,
+              sampleRate: data.sample_rate || 24000,
+            });
+            
+            voiceCallInProgress = false;
+            voiceAgentBtn.disabled = false;
+            voiceAgentBtn.textContent = '🎤 Voice Call with AI';
+          } else {
+            alert('🎤 Voice call initialized! Check browser console for details.');
+            console.log('Voice call data:', data);
+            voiceCallInProgress = false;
+            voiceAgentBtn.disabled = false;
+            voiceAgentBtn.textContent = '🎤 Voice Call with AI';
+          }
+        } catch (err) {
+          console.error('Voice call error:', err);
+          alert('❌ Error starting voice call');
+          voiceCallInProgress = false;
+          voiceAgentBtn.disabled = false;
+          voiceAgentBtn.textContent = '🎤 Voice Call with AI';
+        }
+      });
+
       function bookMeeting() {
         window.location.href = "https://calendly.com/thorodinson10001/ai-call-booking";
       }

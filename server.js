@@ -2,19 +2,79 @@ require("dotenv").config();
 const express = require("express");
 const path = require("path");
 const axios = require("axios");
+const { RetellClient } = require("retell-sdk");
 
 const app = express();
 app.use(express.json());
-app.use(express.static(path.join(__dirname, '/')));
+app.use(express.static(path.join(__dirname, 'public')));
+
+// Initialize Retell Client
+const retellClient = new RetellClient({
+  apiKey: process.env.RETELL_API_KEY,
+});
+
+const VOICE_AGENT_ID = "agent_e03cd0e55de6d462b317d1fc7d";
+const CHAT_AGENT_ID = "agent_6e17f4af5752d75629bef5bb6d";
 
 // simple health check for Render
 app.get("/", (req, res) => {
   res.sendFile(path.join(__dirname, "public", "index.html"));
 });
 
-// ✅ Retell route (temporary response)
-app.post("/retell-book", async (req, res) => {
-  res.json({ success: true });
+// ✅ Initialize voice agent conversation
+app.post("/retell-voice-init", async (req, res) => {
+  try {
+    const conversation = await retellClient.conversation.create({
+      agent_id: VOICE_AGENT_ID,
+    });
+    res.json({
+      success: true,
+      conversation_id: conversation.conversation_id,
+      sample_rate: conversation.sample_rate,
+    });
+  } catch (error) {
+    console.error("Voice agent init error:", error.message);
+    res.status(500).json({ error: "Failed to initialize voice agent" });
+  }
+});
+
+// ✅ Initialize chat agent conversation
+app.post("/retell-chat-init", async (req, res) => {
+  try {
+    const conversation = await retellClient.conversation.create({
+      agent_id: CHAT_AGENT_ID,
+    });
+    res.json({
+      success: true,
+      conversation_id: conversation.conversation_id,
+    });
+  } catch (error) {
+    console.error("Chat agent init error:", error.message);
+    res.status(500).json({ error: "Failed to initialize chat agent" });
+  }
+});
+
+// ✅ Send chat message
+app.post("/retell-chat-message", async (req, res) => {
+  try {
+    const { conversation_id, text } = req.body;
+    
+    if (!conversation_id || !text) {
+      return res.status(400).json({ error: "Missing conversation_id or text" });
+    }
+
+    const response = await retellClient.conversation.chat(conversation_id, {
+      text: text,
+    });
+    
+    res.json({
+      success: true,
+      response: response,
+    });
+  } catch (error) {
+    console.error("Chat message error:", error.message);
+    res.status(500).json({ error: "Failed to send message" });
+  }
 });
 
 // Serve static files from the root directory (now enabled earlier)
